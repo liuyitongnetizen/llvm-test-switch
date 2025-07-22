@@ -1,0 +1,57 @@
+name: Build and Cache LLVM
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: ubuntu-latest  # x86_64 架构
+    env:
+      BUILD_DIR: ${{ github.workspace }}/llvm-build
+      INSTALL_DIR: /tmp/llvm-install
+
+    steps:
+      # 1. 检出代码（含子模块）
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # 2. 安装构建依赖
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build build-essential python3
+
+      # 3. 配置缓存
+      - uses: actions/cache@v3
+        id: cache
+        with:
+          path: ${{ env.BUILD_DIR }}
+          key: ${{ runner.os }}-llvm-${{ hashFiles('llvm-project/llvm/CMakeLists.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-llvm-
+
+      # 4. 构建 LLVM
+      - name: Build LLVM
+        if: steps.cache.outputs.cache-hit != 'true'  # 缓存未命中时构建
+        run: |
+          mkdir -p ${{ env.BUILD_DIR }} && cd ${{ env.BUILD_DIR }}
+          cmake -G "Ninja" \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DLLVM_ENABLE_PROJECTS="clang;lld" \
+                -DCMAKE_INSTALL_PREFIX=${{ env.INSTALL_DIR }} \
+                ${{ github.workspace }}/llvm-project/llvm
+          ninja install
+
+      # 5. 打包产物
+      - name: Archive Binaries
+        run: |
+          tar -czf llvm-bin.tar.gz -C ${{ env.INSTALL_DIR }} .
+
+      # 6. 上传产物
+      - uses: actions/upload-artifact@v3
+        with:
+          name: llvm-x86_64-bin
+          path: llvm-bin.tar.gz
