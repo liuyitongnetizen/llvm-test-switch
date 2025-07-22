@@ -3,11 +3,11 @@ name: Build and Cache LLVM
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest  # x86_64 架构
+    runs-on: ubuntu-latest
     env:
       BUILD_DIR: ${{ github.workspace }}/llvm-build
       INSTALL_DIR: /tmp/llvm-install
@@ -18,7 +18,7 @@ jobs:
         with:
           submodules: recursive
 
-      # 2. 安装构建依赖
+      # 2. 安装依赖
       - name: Install Dependencies
         run: |
           sudo apt-get update
@@ -35,7 +35,7 @@ jobs:
 
       # 4. 构建 LLVM
       - name: Build LLVM
-        if: steps.cache.outputs.cache-hit != 'true'  # 缓存未命中时构建
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p ${{ env.BUILD_DIR }} && cd ${{ env.BUILD_DIR }}
           cmake -G "Ninja" \
@@ -50,8 +50,9 @@ jobs:
         run: |
           tar -czf llvm-bin.tar.gz -C ${{ env.INSTALL_DIR }} .
 
-      # 6. 上传产物
-      - uses: actions/upload-artifact@v3
+      # 6. 上传产物（使用最新 v4+）
+      - uses: actions/upload-artifact@v4
         with:
           name: llvm-x86_64-bin
           path: llvm-bin.tar.gz
+          retention-days: 7  # 自动清理旧产物（可选）
